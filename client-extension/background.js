@@ -1,11 +1,42 @@
-chrome.action.onClicked.addListener(async (tab) => {
-  // 1. Get DOM coordinates from the active tab
-  const response = await chrome.tabs.sendMessage(tab.id, { action: "GET_PII_BOXES" });
-  console.log("Received Bounding Boxes in Background:", response.boxes);
+function getSensitiveDOMBoxes() {
+  // Expanded to catch names, addresses, and common Indian IDs
+  const selectors = [
+    'input[type="password"]',
+    'input[type="email"]',
+    'input[type="tel"]',
+    'input[autocomplete="cc-number"]',
+    'input[autocomplete="name"]',
+    'input[autocomplete="street-address"]',
+    'input[name*="ssn"]',
+    'input[name*="pan"]',
+    'input[name*="aadhar"]'
+  ].join(', ');
 
-  // 2. Capture tab screenshot as Data URL (PNG)
-  const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
-  console.log("Captured Screenshot Payload (Base64 string length):", dataUrl.length);
+  const inputs = document.querySelectorAll(selectors);
+  const dpr = window.devicePixelRatio || 1;
 
-  // TODO LATER: Pass dataUrl and response.boxes into Rust Wasm module to redact!
-});
+  const boxes = Array.from(inputs).map(input => {
+    const rect = input.getBoundingClientRect();
+    return {
+      x: Math.round(rect.left * dpr),
+      y: Math.round(rect.top * dpr),
+      w: Math.round(rect.width * dpr),
+      h: Math.round(rect.height * dpr)
+    };
+  });
+
+  console.log("Found Sensitive DOM Bounding Boxes:", boxes);
+  return boxes;
+}
+
+// Safety Check: Because background.js injects this file every time the icon 
+// is clicked, we must prevent multiple message listeners from piling up.
+if (!window.hasInjectedPrivacyAgent) {
+  window.hasInjectedPrivacyAgent = true;
+  
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "GET_PII_BOXES") {
+      sendResponse({ boxes: getSensitiveDOMBoxes() });
+    }
+  });
+}
