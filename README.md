@@ -1,4 +1,4 @@
-# Privacy Lens
+# SIH / Privacy Lens
 
 A Manifest V3 Chrome extension that identifies likely sensitive form fields on the active page and returns their bounding boxes in device pixels.
 
