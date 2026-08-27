@@ -1,4 +1,5 @@
-# SIH / Privacy Lens
+<<<<<<< HEAD
+# Privacy Lens
 
 A Manifest V3 Chrome extension that identifies likely sensitive form fields on the active page and returns their bounding boxes in device pixels.
 
@@ -14,3 +15,6 @@ The extension never reads or stores input values. It only inspects matching inpu
 ## Matched fields
 
 Passwords, email addresses, telephone numbers, credit-card numbers, names, street addresses, SSN/PAN/Aadhaar field names, and common Indian ID spellings are included.
+=======
+# SIH
+>>>>>>> origin/main
