@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Lens - Test Suite</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap">
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --border: #334155;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --primary: #38bdf8;
+      --success: #34d399;
+      --danger: #f87171;
+      --accent: #a78bfa;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      padding: 40px 20px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    h1 {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+      background: linear-gradient(to right, var(--primary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    p.subtitle {
+      color: var(--text-muted);
+      font-size: 16px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 30px;
+    }
+
+    @media (max-width: 768px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    }
+
+    .card h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      color: var(--primary);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 8px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .form-group input, 
+    .form-group textarea, 
+    .form-group select {
+      width: 100%;
+      padding: 10px 14px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-group input:focus, 
+    .form-group textarea:focus, 
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+    }
+
+    .editor {
+      min-height: 80px;
+      padding: 10px 14px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 14px;
+    }
+
+    .editor:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.15);
+    }
+
+    /* Actions panel */
+    .actions-panel {
+      background: rgba(167, 139, 250, 0.1);
+      border: 1px dashed var(--accent);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      margin-top: 30px;
+    }
+
+    .actions-panel h3 {
+      font-size: 16px;
+      margin-bottom: 12px;
+      color: var(--accent);
+    }
+
+    .btn-group {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    button.btn {
+      padding: 10px 20px;
+      font-family: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.1s;
+    }
+
+    button.btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: var(--bg);
+    }
+
+    .btn-primary:hover {
+      background-color: #7dd3fc;
+    }
+
+    .btn-secondary {
+      background-color: var(--border);
+      color: var(--text);
+    }
+
+    .btn-secondary:hover {
+      background-color: #475569;
+    }
+
+    .btn-danger {
+      background-color: var(--danger);
+      color: var(--bg);
+    }
+
+    .btn-danger:hover {
+      background-color: #fca5a5;
+    }
+
+    .dynamic-area {
+      margin-top: 15px;
+      padding: 10px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.05);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Privacy Lens Verification Suite</h1>
+      <p class="subtitle">Use this page to verify element classification, MutationObservers, and deduplication logic.</p>
+    </header>
+
+    <div class="grid">
+      <!-- Account Credentials -->
+      <section class="card">
+        <h2>1. Credentials & Account (3 categories)</h2>
+        <div class="form-group">
+          <label for="username">Username / Nickname</label>
+          <input type="text" id="username" name="username" autocomplete="username" placeholder="username_test">
+        </div>
+        <div class="form-group">
+          <label for="email">Email Address</label>
+          <input type="email" id="email" name="email" placeholder="test@domain.com">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="pwd" placeholder="••••••••">
+        </div>
+      </section>
+
+      <!-- Personal Info -->
+      <section class="card">
+        <h2>2. Personal Details (4 categories)</h2>
+        <div class="form-group">
+          <label for="fullname">Full Name</label>
+          <input type="text" id="fullname" name="fullname" autocomplete="name" placeholder="John Doe">
+        </div>
+        <div class="form-group">
+          <label for="firstname">First Name</label>
+          <input type="text" id="firstname" name="first_name" placeholder="John">
+        </div>
+        <div class="form-group">
+          <label for="lastname">Last Name</label>
+          <input type="text" id="lastname" name="last-name" placeholder="Doe">
+        </div>
+        <div class="form-group">
+          <label for="dob">Date of Birth</label>
+          <input type="date" id="dob" name="birth_date">
+        </div>
+      </section>
+
+      <!-- Address Info -->
+      <section class="card">
+        <h2>3. Location & Address (2 categories)</h2>
+        <div class="form-group">
+          <label for="address">Street Address</label>
+          <textarea id="address" name="address" placeholder="123 Main St, Apt 4B"></textarea>
+        </div>
+        <div class="form-group">
+          <label for="zipcode">Postal / ZIP Code</label>
+          <input type="text" id="zipcode" name="pincode" placeholder="10001">
+        </div>
+      </section>
+
+      <!-- Financial Info -->
+      <section class="card">
+        <h2>4. Financials (4 categories)</h2>
+        <div class="form-group">
+          <label for="card">Credit/Debit Card Number</label>
+          <input type="text" id="card" autocomplete="cc-number" placeholder="4111 2222 3333 4444">
+        </div>
+        <div class="form-group">
+          <label for="cvv">CVV / Security Code</label>
+          <input type="text" id="cvv" name="security_code" placeholder="123">
+        </div>
+        <div class="form-group">
+          <label for="expiry">Card Expiration Date</label>
+          <input type="text" id="expiry" autocomplete="cc-exp" placeholder="MM/YY">
+        </div>
+        <div class="form-group">
+          <label for="bank">Bank Account Information (IBAN)</label>
+          <input type="text" id="bank" name="iban" placeholder="DE89 3704 0044 0532 ...">
+        </div>
+      </section>
+
+      <!-- Identity Docs -->
+      <section class="card">
+        <h2>5. Identity Documentation (5 categories)</h2>
+        <div class="form-group">
+          <label for="gov">Government ID (Drivers License)</label>
+          <input type="text" id="gov" name="driver_license" placeholder="DL-89736-X">
+        </div>
+        <div class="form-group">
+          <label for="aadhaar">Aadhaar (Indian ID)</label>
+          <input type="text" id="aadhaar" name="aadhaar" placeholder="1234 5678 9012">
+        </div>
+        <div class="form-group">
+          <label for="pan">PAN Card (Indian Tax ID)</label>
+          <input type="text" id="pan" name="pan" placeholder="ABCDE1234F">
+        </div>
+        <div class="form-group">
+          <label for="ssn">Social Security Number (SSN)</label>
+          <input type="text" id="ssn" autocomplete="ssn" placeholder="000-12-3456">
+        </div>
+        <div class="form-group">
+          <label for="passport">Passport Number</label>
+          <input type="text" id="passport" name="passport_number" placeholder="Z1234567">
+        </div>
+      </section>
+
+      <!-- Control Group (Non-Sensitive) -->
+      <section class="card">
+        <h2>6. Control Group (Non-Sensitive Fields)</h2>
+        <div class="form-group">
+          <label for="search">Search Site</label>
+          <input type="search" id="search" name="q" placeholder="Type search query...">
+        </div>
+        <div class="form-group">
+          <label for="comments">General Comments (TextArea)</label>
+          <textarea id="comments" name="user_feedback" placeholder="Leave your feedback here..."></textarea>
+        </div>
+        <div class="form-group">
+          <label for="country">Select Country (Dropdown)</label>
+          <select id="country" name="country">
+            <option value="us">United States</option>
+            <option value="in">India</option>
+            <option value="uk">United Kingdom</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Rich Text Editor (ContentEditable)</label>
+          <div class="editor" contenteditable="true">
+            Type normal non-sensitive notes here...
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Actions Panel for Dynamic DOM Testing -->
+    <section class="actions-panel">
+      <h3>Interactive Observer Panel</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 15px;">
+        Click these buttons to test if the <strong>MutationObserver</strong> detects dynamic changes and feeds updates to the popup.
+      </p>
+      <div class="btn-group">
+        <button class="btn btn-primary" id="btn-add">Add Phone Input (tel)</button>
+        <button class="btn btn-secondary" id="btn-modify">Modify Search Input to Email</button>
+        <button class="btn btn-danger" id="btn-remove">Remove Added Fields</button>
+      </div>
+      <div id="dynamic-container" class="dynamic-area" style="display: none;">
+        <!-- Dynamic elements will be inserted here -->
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const addBtn = document.getElementById('btn-add');
+    const modifyBtn = document.getElementById('btn-modify');
+    const removeBtn = document.getElementById('btn-remove');
+    const dynamicContainer = document.getElementById('dynamic-container');
+    const searchInput = document.getElementById('search');
+
+    addBtn.addEventListener('click', () => {
+      dynamicContainer.style.display = 'block';
+      const formGroup = document.createElement('div');
+      formGroup.className = 'form-group dynamic-item';
+      formGroup.innerHTML = `
+        <label for="dyn-phone">Dynamic Phone Number</label>
+        <input type="tel" id="dyn-phone" name="dyn_phone" placeholder="+1 (555) 019-2834">
+      `;
+      dynamicContainer.appendChild(formGroup);
+    });
+
+    modifyBtn.addEventListener('click', () => {
+      if (searchInput) {
+        searchInput.setAttribute('type', 'email');
+        searchInput.setAttribute('name', 'email');
+        searchInput.setAttribute('placeholder', 'Modifed to email...');
+        alert('Search input type has been changed to "email" and name changed to "email"!');
+      }
+    });
+
+    removeBtn.addEventListener('click', () => {
+      dynamicContainer.innerHTML = '';
+      dynamicContainer.style.display = 'none';
+      if (searchInput) {
+        searchInput.setAttribute('type', 'search');
+        searchInput.setAttribute('name', 'q');
+        searchInput.setAttribute('placeholder', 'Type search query...');
+      }
+    });
+  </script>
+</body>
+</html>

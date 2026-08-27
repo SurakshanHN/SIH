@@ -3,9 +3,39 @@ const note = document.querySelector('#summary-note');
 const boxList = document.querySelector('#box-list');
 const scanButton = document.querySelector('#scan-button');
 
+function formatCategory(category) {
+  if (!category) return 'Unknown';
+  
+  const specialCaps = {
+    'ssn': 'SSN',
+    'pan': 'PAN',
+    'cvv/security code': 'CVV/Security Code',
+    'aadhaar': 'Aadhaar',
+  };
+  
+  if (specialCaps[category.toLowerCase()]) {
+    return specialCaps[category.toLowerCase()];
+  }
+  
+  return category
+    .split(' ')
+    .map(word => {
+      if (word.includes('/')) {
+        return word.split('/').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join('/');
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+}
+
 function renderBoxes(boxes) {
   count.textContent = boxes.length;
-  note.textContent = boxes.length === 1 ? 'One field needs attention' : boxes.length ? 'Fields need attention' : 'Nothing sensitive detected';
+  note.textContent = boxes.length === 1 
+    ? 'One field needs attention' 
+    : boxes.length 
+      ? 'Fields need attention' 
+      : 'Nothing sensitive detected';
+  
   boxList.replaceChildren();
 
   if (!boxes.length) {
@@ -18,7 +48,11 @@ function renderBoxes(boxes) {
 
   boxes.forEach(box => {
     const item = document.createElement('li');
-    item.textContent = `x ${box.x}   y ${box.y}   ${box.w} x ${box.h}`;
+    const confidencePct = Math.round((box.confidence || 1) * 100);
+    const categoryName = formatCategory(box.category);
+    
+    // UI displays category and dimensions clearly
+    item.textContent = `${categoryName} (${confidencePct}%) | x ${box.x} y ${box.y} | ${box.w}x${box.h}`;
     boxList.append(item);
   });
 }
@@ -39,6 +73,13 @@ async function scan() {
     renderBoxes(response.boxes || []);
   });
 }
+
+// Support real-time updates from content script
+chrome.runtime.onMessage.addListener((request) => {
+  if (request.action === 'FIELDS_UPDATED') {
+    renderBoxes(request.boxes || []);
+  }
+});
 
 scanButton.addEventListener('click', scan);
 scan();
