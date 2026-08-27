@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Lens</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="masthead">
+      <div class="mark" aria-hidden="true">PL</div>
+      <div>
+        <p class="kicker">LOCAL INSPECTION</p>
+        <h1>Privacy Lens</h1>
+      </div>
+      <span class="status-dot" title="Ready"></span>
+    </header>
+
+    <section class="summary" aria-live="polite">
+      <p class="summary-label">Sensitive fields found</p>
+      <p class="count" id="count">—</p>
+      <p class="summary-note" id="summary-note">Scanning the current page</p>
+    </section>
+
+    <section class="results" aria-label="Scan results">
+      <div class="results-heading">
+        <h2>DOM bounding boxes</h2>
+        <span id="coordinate-space">device px</span>
+      </div>
+      <ol id="box-list" class="box-list">
+        <li class="empty">No scan yet.</li>
+      </ol>
+    </section>
+
+    <button class="scan-button" id="scan-button" type="button">
+      <span class="button-icon" aria-hidden="true">+</span>
+      Scan current page
+    </button>
+    <p class="privacy-note">Values stay in the page. Only element geometry is returned.</p>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>
