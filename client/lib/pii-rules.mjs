@@ -70,8 +70,8 @@ export const RULES = [
   },
   {
     category: "aadhaar",
-    re: /\b\d{4}\s?\d{4}\s?\d{4}\b/g,
-    validate: (m) => verhoeffValid(m),
+    re: /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g,
+    validate: (m) => verhoeffValid(m.replace(/[\s-]/g, "")),
     confidence: 0.98,
   },
   {
@@ -117,17 +117,17 @@ export const RULES = [
   },
   {
     category: "phone-in",
-    re: /(?:\+?91[ -]?)?[6-9]\d{9}\b/g,
+    re: /(?<!\d)(?:\+?91[\s-]?)?[6-9]\d{9}\b/g,
     confidence: 0.8,
   },
   {
     category: "ssn",
-    re: /\b\d{3}-\d{2}-\d{4}\b/g,
+    re: /(?<!(?:order|ref|id|batch|serial|part)[:\s-]*)\b\d{3}-\d{2}-\d{4}\b/gi,
     confidence: 0.9,
   },
   {
     category: "ipv4",
-    re: /\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g,
+    re: /(?<![vV](?:ersion)?\.?\s*)\b(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\b/g,
     confidence: 0.8,
   },
   {
