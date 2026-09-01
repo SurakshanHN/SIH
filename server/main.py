@@ -8,11 +8,11 @@ from __future__ import annotations
 
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from schema import StepRequest, StepResponse
-from vlm import run_step
+from vlm import VLMUnavailable, run_step
 
 from pathlib import Path
 
@@ -36,8 +36,10 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "vlm_mode": os.environ.get("VLM_MODE", "mock"),
-            "model": os.environ.get("VLM_MODEL", "mock")}
+    mode = os.environ.get("VLM_MODE", "gemini")
+    return {"ok": True, "vlm_mode": mode,
+            "model": os.environ.get("VLM_MODEL", "mock" if mode == "mock" else "unset"),
+            "mock_fallback": False}
 
 
 @app.get("/privacy")
@@ -54,4 +56,8 @@ def privacy() -> dict:
 
 @app.post("/agent/step", response_model=StepResponse)
 def agent_step(req: StepRequest) -> StepResponse:
-    return run_step(req)
+    try:
+        return run_step(req)
+    except VLMUnavailable as exc:
+        # 503 -> the client stops the agent and offers a retry. No mock fallback.
+        raise HTTPException(status_code=503, detail=f"AI unavailable — {exc}") from exc

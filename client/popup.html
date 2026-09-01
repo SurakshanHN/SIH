@@ -17,6 +17,7 @@
       </div>
       <h1>Privacy Lens</h1>
     </div>
+    <span class="ai-status" id="ai-status" title="Model status">AI: checking…</span>
     <span class="status-dot" id="status-dot" title="Ready"></span>
   </header>
 
@@ -82,6 +83,11 @@
 
     <button class="scan-button" id="run-button" type="button"><span class="button-icon">▶</span> Start agent</button>
     <button class="ghost-button" id="cancel-button" type="button" hidden>Stop</button>
+    <button class="scan-button" id="retry-button" type="button" hidden><span class="button-icon">↻</span> Retry</button>
+
+    <div class="ai-banner" id="ai-banner" hidden>
+      <p id="ai-banner-text">AI unavailable.</p>
+    </div>
 
     <div class="gate" id="gate" hidden>
       <p id="gate-text"></p>

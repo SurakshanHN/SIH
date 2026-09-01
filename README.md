@@ -62,7 +62,16 @@ npm run server                       # http://localhost:8000
 npm run fixtures                     # http://localhost:4173  (the demo forms)
 ```
 
-1. `chrome://extensions` → Developer mode → **Load unpacked** → select `client/`.
+1. Pick the browser-specific manifest, then load the extension:
+   - **Chrome:** `npm run manifest:chrome` → `chrome://extensions` → Developer mode →
+     **Load unpacked** → select `client/`.
+   - **Firefox:** `npm run manifest:firefox` → `about:debugging#/runtime/this-firefox` →
+     **Load Temporary Add-on** → select `client/manifest.json`.
+
+   Chrome and Firefox need different `background` architectures (`service_worker` vs
+   `scripts`), so `client/manifest.json` is generated from `client/manifest.chrome.json`
+   or `client/manifest.firefox.json` by `scripts/build-manifest.mjs`. Edit the two
+   source manifests, not the generated one.
 2. Open the extension popup → **Profile** tab → fill in some values → **Save profile**
    (they go to `chrome.storage.local` only).
 3. Open a fixture (e.g. `http://localhost:4173/kyc.html`).
@@ -80,8 +89,11 @@ npm run fixtures                     # http://localhost:4173  (the demo forms)
 - **`openai`** — any OpenAI-compatible endpoint (`VLM_BASE_URL` + `VLM_API_KEY` +
   `VLM_MODEL`): OpenRouter `qwen/qwen-2.5-vl-7b-instruct`, or local vLLM / Ollama
   `llama3.2-vision`. The "offline-deployable open-weights" path the brief asks for.
-- **`mock`** — deterministic, offline, instant. Best for latency demos and the
-  automatic fallback when a real model errors.
+- **`mock`** — deterministic, offline, instant. An **explicit** offline demo mode
+  (`VLM_MODE=mock`) for latency work — never an automatic fallback. If the
+  configured model fails, `/agent/step` returns **HTTP 503**, the agent stops,
+  and the popup shows "AI unavailable" with a **Retry** button. It does not
+  silently degrade to a heuristic agent that keeps acting on a live page.
 
 ## Privacy model
 
@@ -129,8 +141,9 @@ Run `node scripts/serve.mjs . 4173` then open `http://localhost:4173/eval/eval.h
   `02frstname`, `24emailadr`), and spatial (caption in a sibling grid/table cell).
   `hostile-form.html` mirrors the RoboForm test page and scores 16/16.
 - Still weak: `<select>` triples sharing one caption (mm/dd/yy), Shadow DOM.
-- The `mock` agent is deterministic and makes the pipeline run offline; it's also
-  the automatic fallback when a real VLM errors.
-- **Cross-Browser Support (Chrome & Firefox)**: Fully compatible with both Google Chrome (using `chrome.offscreen` + WebGPU/WASM) and Mozilla Firefox (using native background vision dispatcher + Gecko MV3 manifest). In Firefox, load temporarily via `about:debugging#/runtime/this-firefox` -> **Load Temporary Add-on** -> select `client/manifest.json`.
+- The `mock` agent is deterministic and makes the pipeline run offline. It is
+  opt-in only (`VLM_MODE=mock`) — a real-model failure stops the agent (HTTP 503
+  + Retry), it is never swapped in automatically mid-run.
+- **Cross-Browser Support (Chrome & Firefox)**: Fully compatible with both Google Chrome (using `chrome.offscreen` + WebGPU/WASM) and Mozilla Firefox (using native background vision dispatcher + Gecko MV3 manifest). Each browser gets its own source manifest (`manifest.chrome.json` / `manifest.firefox.json`); run `npm run manifest:firefox` then load temporarily via `about:debugging#/runtime/this-firefox` -> **Load Temporary Add-on** -> select `client/manifest.json`.
 - **Adversarial Guard & Threat Model**: `client/lib/adversarial-guard.mjs` provides an on-device first-line heuristic defense against prompt injections, leetspeak variants (`1gn0re`), zero-width Unicode steganography (`\u200B`), hidden styles, and attribute injections (`alt`/`aria-label`/`title`). *Known Limitation*: As a heuristic regex layer, it catches known attack signatures and obfuscations, but is not a full semantic NLP classifier for arbitrary open-ended paraphrases. It operates in defense-in-depth alongside structural DLP tokenization, zero-PII skeleton filtering, and human-in-the-loop gates.
 

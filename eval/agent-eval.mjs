@@ -29,7 +29,7 @@ const MAX_STEPS = Number(process.env.STEPS || 6);
 const PROFILE = {
   "full name": "Aditi Sharma", "first name": "Aditi", "last name": "Sharma",
   email: "aditi.sharma@example.com", "phone number": "9876543210",
-  "date of birth": "14/03/1998", address: "42 Nehru Road, Bengaluru",
+  "date of birth": "1998-03-14", address: "42 Nehru Road, Bengaluru",
   "postal/ZIP code": "560001",
 };
 

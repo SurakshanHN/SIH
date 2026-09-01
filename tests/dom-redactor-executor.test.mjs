@@ -226,6 +226,91 @@ test("Executor - directly types resolved value into non-sensitive input field", 
   assert.equal(input.value, "laptop stand");
 });
 
+test("Executor - coerces free-text dates to yyyy-MM-dd for <input type=date>", async () => {
+  const { document, __PL } = setupContext();
+
+  const mk = (id) => {
+    const el = document.createElement("INPUT");
+    el.setAttribute("data-pl-id", id);
+    el.setAttribute("type", "date");
+    document.body.appendChild(el);
+    return el;
+  };
+
+  const dmy = mk("dob1");
+  await __PL.executeAction({ action: "type", targetId: "dob1" }, "14/03/1999");
+  assert.equal(dmy.value, "1999-03-14");
+
+  const iso = mk("dob2");
+  await __PL.executeAction({ action: "type", targetId: "dob2" }, "1999-03-14");
+  assert.equal(iso.value, "1999-03-14");
+
+  const words = mk("dob3");
+  await __PL.executeAction({ action: "type", targetId: "dob3" }, "March 14, 1999");
+  assert.equal(words.value, "1999-03-14");
+
+  const garbage = mk("dob4");
+  const res = await __PL.executeAction({ action: "type", targetId: "dob4" }, "ghjkj");
+  assert.equal(res.ok, false);
+  assert.match(res.note, /Rejected invalid value .* for input type="date"/);
+  assert.equal(garbage.value, "");
+});
+
+test("Executor - rejects hallucinated VLM literalValue for a date field without touching the DOM", async () => {
+  const { document, __PL } = setupContext();
+
+  const dob = document.createElement("INPUT");
+  dob.setAttribute("data-pl-id", "dob");
+  dob.setAttribute("type", "date");
+  document.body.appendChild(dob);
+
+  let touched = false;
+  dob.addEventListener("input", () => { touched = true; });
+  dob.addEventListener("change", () => { touched = true; });
+
+  // Server VLM hallucinates: {action:"type", targetId:"dob", literalValue:"ghjkkjhgf"}
+  const res = await __PL.executeAction(
+    { action: "type", targetId: "dob", literalValue: "ghjkkjhgf" },
+    null
+  );
+
+  assert.equal(res.ok, false);
+  assert.match(res.note, /DOM untouched/);
+  assert.equal(dob.value, "");
+  assert.equal(touched, false);
+});
+
+test("Executor - normalizeInputValue contract (string | \"\" | null)", () => {
+  const { document, __PL } = setupContext();
+  const el = (type) => { const e = document.createElement("INPUT"); e.setAttribute("type", type); return e; };
+
+  assert.equal(__PL.normalizeInputValue(el("date"), null), null);
+  assert.equal(__PL.normalizeInputValue(el("date"), "   "), "");
+  assert.equal(__PL.normalizeInputValue(el("date"), "14-03-1999"), "1999-03-14");
+  assert.equal(__PL.normalizeInputValue(el("date"), "nope"), null);
+  assert.equal(__PL.normalizeInputValue(el("month"), "3/2024"), "2024-03");
+  assert.equal(__PL.normalizeInputValue(el("time"), "2:15 pm"), "14:15");
+  assert.equal(__PL.normalizeInputValue(el("datetime-local"), "1999-03-14 09:30"), "1999-03-14T09:30");
+  assert.equal(__PL.normalizeInputValue(el("color"), "red"), "#ff0000");
+  assert.equal(__PL.normalizeInputValue(el("text"), "  hello  "), "hello");
+});
+
+test("Executor - rejects non-numeric values for <input type=number>", async () => {
+  const { document, __PL } = setupContext();
+
+  const num = document.createElement("INPUT");
+  num.setAttribute("data-pl-id", "age");
+  num.setAttribute("type", "number");
+  document.body.appendChild(num);
+
+  const bad = await __PL.executeAction({ action: "type", targetId: "age" }, "twenty");
+  assert.equal(bad.ok, false);
+  assert.equal(num.value, "");
+
+  await __PL.executeAction({ action: "type", targetId: "age" }, "age: 27 years");
+  assert.equal(num.value, "27");
+});
+
 test("Executor - fills tokenized censored field when local profile value is supplied and blocks when missing", async () => {
   const { document, __PL } = setupContext();
 

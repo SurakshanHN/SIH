@@ -56,14 +56,41 @@ const FILES = [
     url: "https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/worker.min.js",
     out: "tesseract-worker.min.js",
   },
+  // Tesseract core: the worker selects a build at runtime from SIMD support x
+  // OEM (LSTM vs legacy), so the whole core directory must be present. Pointing
+  // corePath at a single file breaks as soon as the worker asks for another
+  // variant (e.g. tesseract-core-simd-lstm.wasm.js).
   {
-    // Tesseract core (WASM glue, SIMD build).
+    url: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core.wasm.js",
+    out: "tesseract-core.wasm.js",
+  },
+  {
+    url: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core.wasm",
+    out: "tesseract-core.wasm",
+  },
+  {
     url: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd.wasm.js",
     out: "tesseract-core-simd.wasm.js",
   },
   {
     url: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd.wasm",
     out: "tesseract-core-simd.wasm",
+  },
+  {
+    url: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-lstm.wasm.js",
+    out: "tesseract-core-lstm.wasm.js",
+  },
+  {
+    url: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-lstm.wasm",
+    out: "tesseract-core-lstm.wasm",
+  },
+  {
+    url: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd-lstm.wasm.js",
+    out: "tesseract-core-simd-lstm.wasm.js",
+  },
+  {
+    url: "https://cdn.jsdelivr.net/npm/tesseract.js-core@5.1.1/tesseract-core-simd-lstm.wasm",
+    out: "tesseract-core-simd-lstm.wasm",
   },
   {
     // English trained data (gzip). ~10 MB.

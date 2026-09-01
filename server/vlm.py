@@ -7,10 +7,15 @@ Modes (env VLM_MODE):
   openai - any OpenAI-compatible chat/vision endpoint (vLLM / Ollama / OpenRouter
            hosting Qwen2.5-VL, Llama-3.2-Vision, InternVL2, ...).
   mock   - deterministic agent, no network. Reads the sanitized skeleton and
-           fills PII fields by piiCategory. Offline fallback.
+           fills PII fields by piiCategory. An explicit offline demo mode —
+           only used when VLM_MODE=mock is set deliberately.
 
 No tokenization: the server sees only structure and a blacked-out screenshot.
-Any adapter error falls back to `mock` so a demo never hard-stops.
+
+There is NO automatic fallback to `mock`. If the configured model fails, the
+request raises VLMUnavailable -> HTTP 503 and the agent STOPS. Silently
+degrading to a heuristic agent that keeps acting on a live page is a security
+problem, not a resilience feature.
 """
 from __future__ import annotations
 
@@ -218,16 +223,31 @@ def _mock(req: StepRequest) -> StepResponse:
 _ADAPTERS = {"gemini": _gemini, "openai": _openai, "mock": _mock}
 
 
+class VLMUnavailable(RuntimeError):
+    """The configured VLM could not produce a plan.
+
+    The agent must STOP and show the user a recoverable error. It must never
+    silently fall back to the offline mock agent and keep acting on the page.
+    """
+
+
 def run_step(req: StepRequest) -> StepResponse:
     mode = os.environ.get("VLM_MODE", "gemini").lower()
-    fn = _ADAPTERS.get(mode, _mock)
+    fn = _ADAPTERS.get(mode)
+    if fn is None:
+        raise VLMUnavailable(f"unknown VLM_MODE '{mode}' (expected one of: {', '.join(_ADAPTERS)})")
+
     t0 = time.time()
     try:
         resp = fn(req)
-        if not resp.actions:
-            raise RuntimeError("empty action list")
+    except VLMUnavailable:
+        raise
     except Exception as exc:  # noqa: BLE001
-        resp = _mock(req)
-        resp.rationale = f"[{mode} fell back to mock: {exc}] " + resp.rationale
+        # No fallback. A real-model failure stops the agent.
+        raise VLMUnavailable(f"{mode}: {exc}") from exc
+
+    if not resp.actions and not resp.done:
+        raise VLMUnavailable(f"{mode} returned no actionable plan")
+
     resp.latency_ms = int((time.time() - t0) * 1000)
     return resp

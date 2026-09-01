@@ -27,7 +27,7 @@ touches the network.
 
 | File | Purpose |
 |---|---|
-| `tesseract.min.js`, `tesseract-worker.min.js`, `tesseract-core-simd.wasm(.js)` | Tesseract.js 5 LSTM OCR engine (WASM/CPU) |
+| `tesseract.min.js`, `tesseract-worker.min.js`, `tesseract-core{,-simd}{,-lstm}.wasm(.js)` | Tesseract.js 5 LSTM OCR engine (WASM/CPU) — full core dir; worker picks a build at runtime |
 | `eng.traineddata.gz` | Tesseract English model |
 | `tasks-vision.mjs`, `mp-wasm/*` | MediaPipe Tasks-Vision runtime |
 | `blaze_face_short_range.tflite` | BlazeFace face detector (~230 KB) |

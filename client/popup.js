@@ -12,16 +12,48 @@ document.querySelectorAll(".tab").forEach((t) => {
 });
 
 // ---- profile (ONLY non-sensitive fields; all censored fields stripped) ----
+// [key, placeholder, kind?]. `kind: "date"` is stored canonically as an ISO
+// yyyy-MM-dd string but shown to the user as "14 Mar 1998" to kill the
+// DD/MM vs MM/DD ambiguity.
 const PROFILE_FIELDS = [
   ["full name", "Aditi Sharma"],
   ["first name", "Aditi"],
   ["last name", "Sharma"],
   ["email", "aditi.sharma@example.com"],
   ["phone number", "9876543210"],
-  ["date of birth", "14/03/1998"],
+  ["date of birth", "14 Mar 1998", "date"],
   ["address", "42 Nehru Road, Bengaluru"],
   ["postal/ZIP code", "560001"],
 ];
+const DATE_KEYS = new Set(PROFILE_FIELDS.filter(([, , k]) => k === "date").map(([key]) => key));
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Parse free-text (14 Mar 1998, 14/03/1998, 14-03-1998, 1998-03-14) → yyyy-MM-dd, else null.
+function toISODate(raw) {
+  const v = String(raw || "").trim();
+  if (!v) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+  let m = v.match(/^(\d{1,2})[/\s.\-]([A-Za-z]{3,}|\d{1,2})[/\s.\-](\d{4})$/);
+  if (m) {
+    let mo = /^\d+$/.test(m[2]) ? +m[2] : MONTHS.findIndex((x) => m[2].toLowerCase().startsWith(x.toLowerCase())) + 1;
+    const d = +m[1], y = +m[3];
+    if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  }
+  const t = Date.parse(v);
+  if (!Number.isNaN(t)) {
+    const dt = new Date(t);
+    return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+  }
+  return null;
+}
+
+// yyyy-MM-dd → "14 Mar 1998" for display; passthrough if not ISO.
+function formatDateHuman(iso) {
+  const m = String(iso || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return iso || "";
+  return `${+m[3]} ${MONTHS[+m[2] - 1]} ${m[1]}`;
+}
 
 async function loadProfile() {
   const { profile = {} } = await chrome.storage.local.get("profile");
@@ -32,7 +64,8 @@ async function loadProfile() {
     const wrap = document.createElement("label");
     wrap.className = "field";
     wrap.innerHTML = `<span>${key}</span><input data-key="${key}" type="text" placeholder="${ph}" />`;
-    wrap.querySelector("input").value = profile[key] || "";
+    const stored = profile[key] || "";
+    wrap.querySelector("input").value = DATE_KEYS.has(key) ? formatDateHuman(stored) : stored;
     box.appendChild(wrap);
   }
 }
@@ -41,9 +74,26 @@ const saveBtn = $("#save-profile");
 if (saveBtn) {
   saveBtn.addEventListener("click", async () => {
     const profile = {};
+    let badDate = null;
     document.querySelectorAll("#profile-fields input").forEach((i) => {
-      if (i.value.trim()) profile[i.dataset.key] = i.value.trim();
+      const raw = i.value.trim();
+      if (!raw) return;
+      const key = i.dataset.key;
+      if (DATE_KEYS.has(key)) {
+        const iso = toISODate(raw);
+        if (iso === null) { badDate = key; return; }
+        if (iso) {
+          profile[key] = iso;
+          i.value = formatDateHuman(iso); // reflect the canonical value back
+        }
+      } else {
+        profile[key] = raw;
+      }
     });
+    if (badDate) {
+      $("#saved-note").textContent = `Couldn't read "${badDate}" — try a format like 14 Mar 1998.`;
+      return;
+    }
     await chrome.storage.local.set({ profile });
     $("#saved-note").textContent = `Saved ${Object.keys(profile).length} values locally.`;
     setTimeout(() => ($("#saved-note").textContent = ""), 2500);
@@ -219,12 +269,13 @@ function showEgress(evt) {
 
   const s = evt.visionStats || {};
   const v = s.vit || {};
+  const engine = v.engine || (v.backend === "wasm" ? "WASM · CPU" : v.backend === "webgpu" ? "WebGPU · GPU" : v.backend || "?");
   const vitLine = v.available
-    ? `ViT ${v.modelId || "yolos-tiny"} on ${String(v.backend || "?").toUpperCase()}` +
+    ? `Vision engine: ${engine}` +
       `${v.gpu?.available && v.gpu.vendor ? ` (${v.gpu.vendor}${v.gpu.architecture ? " " + v.gpu.architecture : ""})` : ""}` +
-      ` · ${t.vitMs ?? "?"}ms${v.loadMs != null ? ` (load ${v.loadMs}ms)` : ""}` +
+      ` · ViT ${v.modelId || "yolos-tiny"} · ${t.vitMs ?? "?"}ms${v.loadMs != null ? ` (load ${v.loadMs}ms)` : ""}` +
       ` · saw ${v.objects ?? 0} object(s)${v.labels?.length ? ": " + v.labels.slice(0, 6).join(", ") : ""}`
-    : `ViT unavailable${v.error ? ` — ${v.error}` : ""}`;
+    : `Vision engine: unavailable${v.error ? ` — ${v.error}` : ""}`;
   $("#egress-stats").textContent =
     `step ${evt.step} · OCR ${t.ocrMs ?? "?"}ms · faces ${t.faceMs ?? "?"}ms · ViT ${t.vitMs ?? "?"}ms · blackout ${t.redactMs ?? "?"}ms · total ${t.totalMs ?? "?"}ms\n` +
     `hybrid mode: ${t.a11yBypassed ? "A11y Fast-Path" : "Vision Fallback"} · regions blacked out: ${s.total ?? 0} · ocr lines: ${s.ocrLines ?? 0}\n` +
@@ -271,52 +322,100 @@ chrome.runtime.onMessage.addListener((m) => {
       log(`${e.action.action} ${e.action.targetId || ""} → ${r.note || "?"}${r.verified === false ? " (unverified)" : ""}`, r.ok ? "ok" : "err");
       break;
     }
-    case "error": log(`error [${e.where || ""}]: ${e.message}`, "err"); break;
+    case "error":
+      log(`error [${e.where || ""}]: ${e.message}`, "err");
+      if (e.retryable) {
+        pendingRetry = true;
+        showAiBanner(e.aiUnavailable
+          ? `${e.where || "AI unavailable"} — the agent stopped. It will not guess with an offline fallback. Retry when the model is back.`
+          : `${e.where || "Error"} — ${e.message}`);
+      }
+      break;
     case "submit-skipped": log("submit skipped by user"); break;
     case "done": log(`✔ task complete (step ${e.step})${e.reason ? ` — ${e.reason}` : ""}`, "ok"); break;
     case "cancelled": log("cancelled", "err"); break;
     case "finished":
       setBusy(false);
       log("agent stopped");
+      if (pendingRetry && lastRunOpts) $("#retry-button").hidden = false;
       break;
   }
 });
 
-// ---- run / cancel ------------------------------------------
+// ---- run / cancel / retry ---------------------------------
+let lastRunOpts = null;
+let pendingRetry = false;
+
 function setBusy(b) {
   statusDot.classList.toggle("busy", b);
   $("#run-button").hidden = b;
   $("#cancel-button").hidden = !b;
+  if (b) $("#retry-button").hidden = true;
 }
 
-$("#run-button").addEventListener("click", () => {
-  const goal = goalMode === "guided" ? composeGuidedGoal() : $("#goal").value.trim();
-  if (!goal) { $("#goal").focus(); return; }
+function showAiBanner(text) {
+  $("#ai-banner-text").textContent = text;
+  $("#ai-banner").hidden = false;
+}
+function hideAiBanner() { $("#ai-banner").hidden = true; }
+
+function startTask(opts) {
+  lastRunOpts = opts;
+  pendingRetry = false;
+  hideAiBanner();
   logEl.replaceChildren();
   egress.hidden = true;
   setBusy(true);
   document.querySelector('.tab[data-tab="activity"]').click();
-  chrome.runtime.sendMessage({
-    action: "PL_RUN_TASK",
-    opts: {
-      goal,
-      serverUrl: $("#serverUrl").value.trim() || "http://localhost:8000",
-      redactionMode: "blackout",
-      confirmEachSend: $("#confirmEachSend").checked,
-      confirmBeforeSubmit: $("#confirmBeforeSubmit").checked,
-    },
-  }, (res) => {
+  chrome.runtime.sendMessage({ action: "PL_RUN_TASK", opts }, (res) => {
     if (chrome.runtime.lastError || !res?.ok) {
       log(`could not start: ${res?.error || chrome.runtime.lastError?.message}`, "err");
       setBusy(false);
     }
   });
+}
+
+$("#run-button").addEventListener("click", () => {
+  const goal = goalMode === "guided" ? composeGuidedGoal() : $("#goal").value.trim();
+  if (!goal) { $("#goal").focus(); return; }
+  startTask({
+    goal,
+    serverUrl: $("#serverUrl").value.trim() || "http://localhost:8000",
+    redactionMode: "blackout",
+    confirmEachSend: $("#confirmEachSend").checked,
+    confirmBeforeSubmit: $("#confirmBeforeSubmit").checked,
+  });
+});
+
+$("#retry-button").addEventListener("click", () => {
+  if (lastRunOpts) startTask(lastRunOpts);
 });
 
 $("#cancel-button").addEventListener("click", () => {
   chrome.runtime.sendMessage({ action: "PL_CANCEL_TASK" });
   setBusy(false);
 });
+
+// ---- model status ----------------------------------------
+async function refreshAiStatus() {
+  const el = $("#ai-status");
+  const url = ($("#serverUrl")?.value.trim() || "http://localhost:8000").replace(/\/$/, "");
+  try {
+    const r = await fetch(`${url}/health`, { signal: AbortSignal.timeout(3000) });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const h = await r.json();
+    const model = h.model && h.model !== "unset" ? h.model : h.vlm_mode;
+    el.textContent = `AI: ${model}`;
+    el.title = `VLM mode: ${h.vlm_mode} · model: ${h.model} · mock fallback: ${h.mock_fallback ? "on" : "off"}`;
+    el.classList.toggle("is-offline", h.vlm_mode === "mock");
+  } catch (e) {
+    el.textContent = "AI: offline";
+    el.title = `Server not reachable at ${url} (${e.message})`;
+    el.classList.add("is-offline");
+  }
+}
+refreshAiStatus();
+$("#serverUrl")?.addEventListener("change", refreshAiStatus);
 
 // ---- legacy quick scan ------------------------------------
 $("#scan-button").addEventListener("click", () => {

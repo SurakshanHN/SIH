@@ -26,13 +26,54 @@ let _backend = null;       // "webgpu" | "wasm" | null
 let _loadMs = null;        // one-time model load cost
 let _failed = false;
 let _lastError = null;
+let _RawImage = null;      // Transformers.js RawImage ctor, captured at load
 
-/** Probe WebGPU without throwing on browsers that lack it. */
-export async function probeWebGPU() {
+/**
+ * Normalise whatever the pipeline gets into something Transformers.js can read.
+ * The processor chokes on a bare OffscreenCanvas in an extension/offscreen
+ * context ("Unsupported input type: object"), so convert canvases to RawImage
+ * explicitly. ImageBitmap and RawImage are passed straight through.
+ */
+function toModelInput(image) {
+  const isCanvas =
+    (typeof OffscreenCanvas !== "undefined" && image instanceof OffscreenCanvas) ||
+    (typeof HTMLCanvasElement !== "undefined" && image instanceof HTMLCanvasElement) ||
+    (image && typeof image.getContext === "function");
+  if (isCanvas && _RawImage && typeof _RawImage.fromCanvas === "function") {
+    return _RawImage.fromCanvas(image);
+  }
+  return image;
+}
+
+let _gpuProbe = null;       // cached probeWebGPU() result
+
+/** Human-readable engine label for the UI, e.g. "WASM · CPU". */
+export function backendLabel(backend) {
+  if (backend === "webgpu") return "WebGPU · GPU";
+  if (backend === "wasm") return "WASM · CPU";
+  if (backend === "a11y_fastpath") return "A11y fast-path";
+  return backend ? String(backend) : "unavailable";
+}
+
+/**
+ * Probe WebGPU without throwing on browsers that lack it. The result is cached:
+ * a missing adapter is a permanent condition for the session, and re-probing on
+ * every frame just spams the browser's "No available adapters." diagnostic.
+ * Pass `force` to re-probe.
+ */
+export async function probeWebGPU(force = false) {
+  if (_gpuProbe && !force) return _gpuProbe;
+  _gpuProbe = await _probeWebGPU();
+  return _gpuProbe;
+}
+
+async function _probeWebGPU() {
   try {
-    if (typeof navigator === "undefined" || !navigator.gpu) return { available: false, reason: "navigator.gpu missing" };
+    if (typeof navigator === "undefined" || !navigator.gpu) {
+      return { available: false, reason: "WebGPU not supported in this browser" };
+    }
     const adapter = await navigator.gpu.requestAdapter();
-    if (!adapter) return { available: false, reason: "no adapter" };
+    if (!adapter) return { available: false, reason: "no compatible GPU adapter — using CPU" };
     const info = (typeof adapter.requestAdapterInfo === "function" ? await adapter.requestAdapterInfo() : adapter.info) || {};
     return {
       available: true,
@@ -52,7 +93,8 @@ async function loadPipeline(runtimeUrl) {
     ? runtimeUrl
     : (p) => (typeof chrome !== "undefined" && chrome.runtime?.getURL ? chrome.runtime.getURL(p) : `./${p}`);
 
-  const { pipeline, env } = await import(getUrl("vendor/transformers.min.js"));
+  const { pipeline, env, RawImage } = await import(getUrl("vendor/transformers.min.js"));
+  _RawImage = RawImage || null;
 
   // Fully local: never touch the Hugging Face CDN at inference time.
   env.allowRemoteModels = false;
@@ -84,7 +126,9 @@ async function loadPipeline(runtimeUrl) {
       return { pipe, gpu };
     } catch (e) {
       lastErr = e;
-      console.warn(`[vit] ${device} backend unavailable: ${e.message}`);
+      // Expected when a GPU is advertised but the pipeline can't use it — we
+      // fall through to the next provider (WASM). Not an error for the user.
+      console.info(`[vit] ${device} unavailable, trying next provider: ${e.message}`);
     }
   }
   throw lastErr || new Error("no ONNX execution provider available");
@@ -122,9 +166,7 @@ export async function detectObjects(runtimeUrl, image, opts = {}) {
   }
 
   try {
-    // Transformers.js accepts a RawImage; an ImageBitmap/canvas is converted by
-    // the processor. Pass through a canvas so OffscreenCanvas works everywhere.
-    const out = await _pipe(image, { threshold, percentage: false });
+    const out = await _pipe(toModelInput(image), { threshold, percentage: false });
     const dets = (out || []).map((d) => ({
       category: PRIVACY_LABELS.has(d.label) ? "person" : `object:${d.label}`,
       label: d.label,
@@ -141,6 +183,7 @@ export async function detectObjects(runtimeUrl, image, opts = {}) {
     return {
       dets,
       backend: _backend,
+      engine: backendLabel(_backend),
       ms: Math.round(performance.now() - t0),
       loadMs: _loadMs,
       labels: [...new Set(dets.map((d) => d.label))],
@@ -155,5 +198,12 @@ export async function detectObjects(runtimeUrl, image, opts = {}) {
 }
 
 export function visionModelInfo() {
-  return { modelId: MODEL_ID, backend: _backend, loadMs: _loadMs, failed: _failed, error: _lastError };
+  return {
+    modelId: MODEL_ID,
+    backend: _backend,
+    engine: backendLabel(_backend),
+    loadMs: _loadMs,
+    failed: _failed,
+    error: _lastError,
+  };
 }

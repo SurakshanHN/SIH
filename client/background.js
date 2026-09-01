@@ -307,8 +307,14 @@ async function runAgentTask(opts) {
     try {
       plan = await requestStep(cfg.serverUrl, payload);
     } catch (e) {
-      const where = e.isNetworkError ? "network (server offline)" : `server (HTTP ${e.status || "error"})`;
-      emit({ type: "error", step, where, message: e.message });
+      const aiDown = e.status === 503;
+      const where = e.isNetworkError ? "network (server offline)"
+        : e.isTimeout ? "AI timed out"
+        : aiDown ? "AI unavailable"
+        : `server (HTTP ${e.status || "error"})`;
+      // The server no longer falls back to a mock agent — a model failure
+      // stops the run and the user retries.
+      emit({ type: "error", step, where, message: e.message, retryable: true, aiUnavailable: aiDown || e.isTimeout || e.isNetworkError });
       break;
     }
     emit({ type: "plan", step, rationale: plan.rationale, actions: plan.actions, serverLatencyMs: plan.serverLatencyMs, roundTripMs: Math.round(plan.roundTripMs) });

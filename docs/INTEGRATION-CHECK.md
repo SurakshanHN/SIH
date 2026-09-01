@@ -88,7 +88,7 @@ Contract checks done statically:
 | offscreen not ready for first `PL_VISION` | `ensureOffscreen` polls `PL_OFFSCREEN_READY`; `callOffscreen` retries 3× |
 | popup closed mid-run | events dropped (`emit` catches); gates auto-deny after 90 s |
 | large PNG over `sendMessage` | re-encoded to JPEG q0.82 on the way back; inbound PNG within MV3 limits |
-| Gemini slow / errors | `run_step` falls back to `mock`; rationale notes it |
+| Gemini slow / errors | `run_step` raises `VLMUnavailable` → HTTP 503; agent stops, popup shows "AI unavailable" + Retry (no mock fallback) |
 
 ## Not yet covered
 - Shadow DOM fields (skeleton uses `querySelectorAll`, no shadow traversal).

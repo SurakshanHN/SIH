@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/fetch-vendor.mjs",
+    "manifest:chrome": "node scripts/build-manifest.mjs chrome",
+    "manifest:firefox": "node scripts/build-manifest.mjs firefox",
     "setup": "npm run fetch:vendor && npm run server:install",
     "fetch:vendor": "node scripts/fetch-vendor.mjs",
     "fixtures": "node scripts/serve.mjs fixtures 4173",

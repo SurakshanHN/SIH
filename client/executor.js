@@ -67,6 +67,126 @@
     else el.value = value;
   }
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // Typed-input normalizer
+  //
+  // <input type="date|month|time|...|number|color"> only accepts one wire
+  // format. Handing the browser "14/03/1999" or "ghjkj" makes it silently
+  // drop the value and log a console error. normalizeInputValue() coerces the
+  // model's free-text value into the required format and returns:
+  //   - a normalized string when it can be represented for this input type
+  //   - ""   for an empty/whitespace value
+  //   - null when the value is invalid for the type (caller must not fill)
+  // ═══════════════════════════════════════════════════════════════════════
+
+  function pad2(n) { return String(n).padStart(2, "0"); }
+
+  function parseDateParts(raw) {
+    const v = String(raw).trim();
+    if (!v) return null;
+
+    // Already ISO (yyyy-mm-dd, optionally with time) → take the date portion.
+    let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return { y: +m[1], mo: +m[2], d: +m[3] };
+
+    // Numeric d/m/y or y/m/d with / . or - separators.
+    m = v.match(/^(\d{1,4})[/.\-](\d{1,2})[/.\-](\d{1,4})$/);
+    if (m) {
+      let [, a, b, c] = m;
+      a = +a; b = +b; c = +c;
+      if (String(m[1]).length === 4) return { y: a, mo: b, d: c };      // y/m/d
+      if (c < 100) c += c < 70 ? 2000 : 1900;                            // 2-digit year
+      // a/b/c is day/month or month/day; disambiguate by range, else day-first.
+      if (a > 12 && b <= 12) return { y: c, mo: b, d: a };
+      if (b > 12 && a <= 12) return { y: c, mo: a, d: b };
+      return { y: c, mo: b, d: a };                                      // default DD/MM/YYYY
+    }
+
+    // Fall back to the engine's parser ("March 14, 1999", "14 Mar 1999", …).
+    const t = Date.parse(v);
+    if (!Number.isNaN(t)) {
+      const dt = new Date(t);
+      return { y: dt.getFullYear(), mo: dt.getMonth() + 1, d: dt.getDate() };
+    }
+    return null;
+  }
+
+  function toISODate(raw) {
+    const p = parseDateParts(raw);
+    if (!p || p.mo < 1 || p.mo > 12 || p.d < 1 || p.d > 31 || p.y < 1) return null;
+    return `${String(p.y).padStart(4, "0")}-${pad2(p.mo)}-${pad2(p.d)}`;
+  }
+
+  function parseTimeParts(raw) {
+    const v = String(raw).trim();
+    // Find an HH:MM[:SS] [am/pm] token anywhere (so a datetime string works too).
+    const m = v.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap]\.?m\.?)?/i);
+    if (!m) return null;
+    let h = +m[1];
+    const min = +m[2];
+    const ampm = (m[4] || "").toLowerCase();
+    if (ampm.startsWith("p") && h < 12) h += 12;
+    if (ampm.startsWith("a") && h === 12) h = 0;
+    if (h > 23 || min > 59) return null;
+    return { h, min, s: m[3] != null ? +m[3] : null };
+  }
+
+  function inputType(el) {
+    return (
+      (el.tagName === "INPUT" && (el.getAttribute("type") || el.type)) || "text"
+    ).toLowerCase();
+  }
+
+  /**
+   * @param {Element} el
+   * @param {*} rawValue
+   * @returns {string|null}  normalized string, "" for empty, or null when invalid for the type
+   */
+  function normalizeInputValue(el, rawValue) {
+    if (rawValue == null) return null;
+    const value = String(rawValue).trim();
+    if (!value) return "";
+
+    switch (inputType(el)) {
+      case "date":
+        return toISODate(value);
+      case "month": {
+        if (/^\d{4}-\d{2}$/.test(value)) return value;
+        let m = value.match(/^(\d{1,2})[/.\-](\d{4})$/);           // MM/YYYY
+        if (m && +m[1] >= 1 && +m[1] <= 12) return `${m[2]}-${pad2(+m[1])}`;
+        m = value.match(/^(\d{4})[/.\-](\d{1,2})$/);               // YYYY/MM
+        if (m && +m[2] >= 1 && +m[2] <= 12) return `${m[1]}-${pad2(+m[2])}`;
+        const iso = toISODate(value) || toISODate(value + "-01");  // "March 2024", etc.
+        return iso ? iso.slice(0, 7) : null;
+      }
+      case "datetime-local": {
+        const iso = toISODate(value);
+        if (!iso) return null;
+        const tm = parseTimeParts(value);
+        return `${iso}T${tm ? pad2(tm.h) + ":" + pad2(tm.min) : "00:00"}`;
+      }
+      case "time": {
+        const tm = parseTimeParts(value);
+        return tm ? `${pad2(tm.h)}:${pad2(tm.min)}${tm.s != null ? ":" + pad2(tm.s) : ""}` : null;
+      }
+      case "number":
+      case "range": {
+        // Pull the first numeric token out of the string ("age: 27" → "27").
+        const m = value.replace(/,/g, "").match(/-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/);
+        return m && Number.isFinite(Number(m[0])) ? m[0] : null;
+      }
+      case "color": {
+        let c = value.toLowerCase();
+        const named = { black: "#000000", white: "#ffffff", red: "#ff0000", green: "#008000", blue: "#0000ff" };
+        if (named[c]) c = named[c];
+        if (/^#[0-9a-f]{3}$/.test(c)) c = "#" + c.slice(1).split("").map((x) => x + x).join("");
+        return /^#[0-9a-f]{6}$/.test(c) ? c : null;
+      }
+      default:
+        return value;
+    }
+  }
+
   function fireInput(el) {
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
@@ -171,6 +291,20 @@
       if (!value) {
         return { ok: false, note: `no value to type into ${a.targetId}` };
       }
+
+      // ── Validate BEFORE touching the DOM ──────────────────────────
+      // The server VLM can hallucinate junk ("ghjkkjhgf") for a typed
+      // input. A typed field (date/month/time/number/color/…) that can't
+      // represent the value is rejected here — no focus, no value write,
+      // no events — so bad model output never reaches the page.
+      if (!el.isContentEditable) {
+        const normalizedValue = normalizeInputValue(el, value);
+        if (normalizedValue === null) {
+          return { ok: false, note: `Rejected invalid value "${value}" for input type="${inputType(el)}" — DOM untouched` };
+        }
+        value = normalizedValue;
+      }
+
       el.focus?.();
       if (el.isContentEditable) {
         el.textContent = value;
@@ -191,11 +325,19 @@
     const el = byId(targetId);
     if (!el) return false;
     const got = (el.value ?? el.textContent ?? "").trim();
-    return got.replace(/\s+/g, "") === String(expected).trim().replace(/\s+/g, "");
+    // Compare against the normalized form — a date field holds "1999-03-14"
+    // even though the caller passed "14/03/1999".
+    let want = String(expected);
+    if (!el.isContentEditable) {
+      const normalized = normalizeInputValue(el, want);
+      if (normalized != null) want = normalized;
+    }
+    return got.replace(/\s+/g, "") === want.trim().replace(/\s+/g, "");
   }
 
   window.__PL = window.__PL || {};
   window.__PL.executeAction = executeAction;
   window.__PL.verifyField = verifyField;
   window.__PL.isElementCensored = isElementCensored;
+  window.__PL.normalizeInputValue = normalizeInputValue;
 })();
